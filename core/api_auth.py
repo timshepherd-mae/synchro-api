@@ -1,10 +1,23 @@
+import os
 import requests
-
-CLIENT_ID = "service-twTLdudrg0MFNtgTAuZBQkHAm"
-CLIENT_SECRET = "ouuN+kxe8sYtvBxoqOh3WXLxswAmB/c+IW2ohl2RJovTa6fLlCNp1eB1zfEik94IabY0wyjoLuE3NZvXOx/OPA=="
 
 TOKEN_URL = "https://ims.bentley.com/connect/token"
 TOKEN_SCOPE = "itwin-platform"
+
+CLIENT_ID = os.getenv("BENTLEY_CLIENT_ID")
+CLIENT_SECRET = os.getenv("BENTLEY_CLIENT_SECRET")
+
+if not CLIENT_ID:
+    raise RuntimeError(
+        "BENTLEY_CLIENT_ID environment variable "
+        "is not configured."
+    )
+
+if not CLIENT_SECRET:
+    raise RuntimeError(
+        "BENTLEY_CLIENT_SECRET environment variable "
+        "is not configured."
+    )
 
 # ==========================================================
 # ACCESS TOKEN
