@@ -5,183 +5,244 @@
 # ==========================================================
 
 def resolve_entity_userfields(
-    user_fields: list[dict],
-    requested_names: list[str],
-) -> list[dict]:
+    user_fields,
+    requested_names,
+):
     """
-    Resolve requested Entity 3D User Field names to their API records.
+    Resolve requested User Field names to their corresponding IDs.
 
     Matching is:
+
         - case-insensitive
-        - insensitive to leading/trailing whitespace
-        - restricted to category == "Entity3d"
+        - insensitive to leading/trailing spaces
 
-    The returned records follow the order of requested_names.
+    The returned records use a consistent structure:
 
-    Raises
-    ------
-    ValueError
-        If a requested name is blank, missing, or ambiguous.
+        {
+            "id": "...",
+            "name": "..."
+        }
     """
-    if not requested_names:
-        raise ValueError(
-            "At least one User Field name must be supplied."
-        )
 
-    lookup: dict[str, list[dict]] = {}
+    indexed_user_fields = {}
 
     for user_field in user_fields:
-        category = str(
-            user_field.get("category", "")
-        ).strip()
+        user_field_id = get_userfield_id(user_field)
+        user_field_name = get_userfield_name(user_field)
 
-        if category.casefold() != "entity3d":
+        if user_field_id is None:
             continue
 
-        name = str(
-            user_field.get("name", "")
-        ).strip()
-
-        user_field_id = user_field.get("id")
-
-        if not name or not user_field_id:
+        if user_field_name is None:
             continue
 
-        lookup.setdefault(
-            name.casefold(),
-            []
-        ).append(user_field)
+        normalised_user_field_name = normalise_name(
+            user_field_name
+        )
 
-    resolved = []
-    missing = []
-    ambiguous = []
+        indexed_user_fields.setdefault(
+            normalised_user_field_name,
+            [],
+        ).append(
+            {
+                "id": user_field_id,
+                "name": user_field_name,
+                "source": user_field,
+            }
+        )
+
+    resolved_user_fields = []
+    missing_names = []
+    duplicate_names = []
 
     for requested_name in requested_names:
-        clean_name = str(requested_name).strip()
+        normalised_requested_name = normalise_name(
+            requested_name
+        )
 
-        if not clean_name:
-            missing.append("<blank name>")
-            continue
-
-        matches = lookup.get(
-            clean_name.casefold(),
-            []
+        matches = indexed_user_fields.get(
+            normalised_requested_name,
+            [],
         )
 
         if not matches:
-            missing.append(clean_name)
+            missing_names.append(requested_name)
             continue
 
         if len(matches) > 1:
-            ambiguous.append(clean_name)
+            duplicate_names.append(
+                {
+                    "requested_name": requested_name,
+                    "matches": matches,
+                }
+            )
             continue
 
-        resolved.append(matches[0])
+        match = matches[0]
 
-    error_parts = []
-
-    if missing:
-        error_parts.append(
-            "User Fields not found: "
-            + ", ".join(missing)
+        resolved_user_fields.append(
+            {
+                "id": match["id"],
+                "name": requested_name,
+            }
         )
 
-    if ambiguous:
-        error_parts.append(
-            "Multiple Entity3d User Fields have these names: "
-            + ", ".join(ambiguous)
+    if missing_names:
+        formatted_missing_names = "\n".join(
+            f"  - {name}"
+            for name in missing_names
         )
 
-    if error_parts:
         raise ValueError(
-            "\n".join(error_parts)
+            "The following requested User Field names "
+            "were not found:\n"
+            f"{formatted_missing_names}"
         )
 
-    return resolved
+    if duplicate_names:
+        duplicate_lines = []
+
+        for duplicate in duplicate_names:
+            matched_ids = ", ".join(
+                str(match["id"])
+                for match in duplicate["matches"]
+            )
+
+            duplicate_lines.append(
+                f"  - {duplicate['requested_name']}: "
+                f"{matched_ids}"
+            )
+
+        raise ValueError(
+            "The following requested User Field names "
+            "matched more than one User Field ID:\n"
+            + "\n".join(duplicate_lines)
+        )
+
+    return resolved_user_fields
+
 
 # ==========================================================
 # BUILD ENTITY 3D USER FIELD TABLE
 # ==========================================================
 
-def build_entity_userfield_table(
-    entities: list[dict],
-    user_field_values: list[dict],
-    selected_user_fields: list[dict],
-) -> list[dict]:
+def resolve_requested_userfields(
+    user_fields,
+    requested_names,
+):
     """
-    Pivot Entity 3D User Field Value records into one row per entity.
+    Resolve requested User Field names to their corresponding IDs.
 
-    Output shape:
+    Matching is:
 
-        entity_id
-        <requested User Field name 1>
-        <requested User Field name 2>
-        ...
+        - case-insensitive
+        - insensitive to leading/trailing spaces
 
-    Entities without a value for a selected User Field receive
-    an empty string.
+    The returned records use a consistent structure:
+
+        {
+            "id": "...",
+            "name": "..."
+        }
     """
-    selected_ids = {
-        user_field["id"]
-        for user_field in selected_user_fields
-    }
 
-    column_name_by_id = {
-        user_field["id"]: user_field["name"]
-        for user_field in selected_user_fields
-    }
+    indexed_user_fields = {}
 
-    values_by_entity: dict[str, dict[str, object]] = {}
+    for user_field in user_fields:
+        user_field_id = get_userfield_id(user_field)
+        user_field_name = get_userfield_name(user_field)
 
-    for value_record in user_field_values:
-        entity_id = value_record.get("entity3dId")
-        user_field_id = value_record.get("userFieldId")
-
-        if not entity_id:
+        if user_field_id is None:
             continue
 
-        if user_field_id not in selected_ids:
+        if user_field_name is None:
             continue
 
-        values_by_entity.setdefault(
-            entity_id,
-            {}
-        )[user_field_id] = value_record.get("value", "")
-
-    table = []
-
-    for entity in entities:
-        entity_id = entity.get("id")
-
-        if not entity_id:
-            continue
-
-        entity_values = values_by_entity.get(
-            entity_id,
-            {}
+        normalised_user_field_name = normalise_name(
+            user_field_name
         )
 
-        row = {
-            "entity_id": entity_id,
-        }
+        indexed_user_fields.setdefault(
+            normalised_user_field_name,
+            [],
+        ).append(
+            {
+                "id": user_field_id,
+                "name": user_field_name,
+                "source": user_field,
+            }
+        )
 
-        for user_field in selected_user_fields:
-            user_field_id = user_field["id"]
-            column_name = column_name_by_id[user_field_id]
+    resolved_user_fields = []
+    missing_names = []
+    duplicate_names = []
 
-            value = entity_values.get(
-                user_field_id,
-                ""
+    for requested_name in requested_names:
+        normalised_requested_name = normalise_name(
+            requested_name
+        )
+
+        matches = indexed_user_fields.get(
+            normalised_requested_name,
+            [],
+        )
+
+        if not matches:
+            missing_names.append(requested_name)
+            continue
+
+        if len(matches) > 1:
+            duplicate_names.append(
+                {
+                    "requested_name": requested_name,
+                    "matches": matches,
+                }
+            )
+            continue
+
+        match = matches[0]
+
+        resolved_user_fields.append(
+            {
+                "id": match["id"],
+                "name": requested_name,
+            }
+        )
+
+    if missing_names:
+        formatted_missing_names = "\n".join(
+            f"  - {name}"
+            for name in missing_names
+        )
+
+        raise ValueError(
+            "The following requested User Field names "
+            "were not found:\n"
+            f"{formatted_missing_names}"
+        )
+
+    if duplicate_names:
+        duplicate_lines = []
+
+        for duplicate in duplicate_names:
+            matched_ids = ", ".join(
+                str(match["id"])
+                for match in duplicate["matches"]
             )
 
-            if value is None:
-                value = ""
+            duplicate_lines.append(
+                f"  - {duplicate['requested_name']}: "
+                f"{matched_ids}"
+            )
 
-            row[column_name] = value
+        raise ValueError(
+            "The following requested User Field names "
+            "matched more than one User Field ID:\n"
+            + "\n".join(duplicate_lines)
+        )
 
-        table.append(row)
+    return resolved_user_fields
 
-    return table
 
 # ==========================================================
 # LOCAL HELPER FUNCTIONS
