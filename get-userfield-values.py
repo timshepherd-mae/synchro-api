@@ -1,5 +1,8 @@
 from core.apitools import *
 from core.outtools import *
+from core.services_userfields import (
+    get_entity_userfield_table,
+)
 
 
 # ==========================================================
@@ -19,6 +22,7 @@ PROJECT_INDEX = 0
 SCHEDULE_INDEX = 0
 
 CONSOLE_PREVIEW_ROWS = 15
+
 
 
 # ==========================================================
@@ -86,169 +90,6 @@ print(
 
 
 # ----------------------------------------------------------
-# GET SCHEDULES
-# ----------------------------------------------------------
-
-print()
-print(
-    f"*** Getting schedules from "
-    f"Project={PROJECT_INDEX}..."
-)
-
-schedules_response = get_schedules(
-    access_token,
-    project_id,
-)
-
-schedules = schedules_response.get(
-    "schedules",
-    [],
-)
-
-if not schedules:
-    raise RuntimeError(
-        "No schedules were returned for the selected iTwin."
-    )
-
-print(
-    f"*** Schedules obtained successfully: "
-    f"{len(schedules)}"
-)
-
-print_records(
-    schedules,
-    n=CONSOLE_PREVIEW_ROWS,
-)
-
-try:
-    schedule = schedules[SCHEDULE_INDEX]
-except IndexError as ex:
-    raise IndexError(
-        f"SCHEDULE_INDEX {SCHEDULE_INDEX} is outside "
-        f"the returned schedule list."
-    ) from ex
-
-schedule_id = schedule.get("id")
-
-if not schedule_id:
-    raise KeyError(
-        "The selected schedule record does not contain "
-        "an 'id' value."
-    )
-
-print()
-print(
-    f"*** Selected schedule: "
-    f"{schedule.get('name', schedule_id)}"
-)
-print(
-    f"*** Selected schedule ID: "
-    f"{schedule_id}"
-)
-
-
-# ----------------------------------------------------------
-# GET USER FIELD DEFINITIONS
-# ----------------------------------------------------------
-
-print()
-print(
-    f"*** Getting User Fields from "
-    f"Schedule={SCHEDULE_INDEX}..."
-)
-
-user_fields = get_all_userfields(
-    access_token,
-    schedule_id,
-)
-
-if not user_fields:
-    raise RuntimeError(
-        "No User Fields were returned for the "
-        "selected schedule."
-    )
-
-print(
-    f"*** User Fields obtained successfully: "
-    f"{len(user_fields)}"
-)
-
-
-# ----------------------------------------------------------
-# RESOLVE REQUESTED USER FIELD NAMES
-# ----------------------------------------------------------
-
-print()
-print(
-    "*** Resolving requested Entity 3D User Fields..."
-)
-
-selected_user_fields = resolve_requested_userfields(
-    user_fields=user_fields,
-    requested_names=REQUESTED_USER_FIELD_NAMES,
-)
-
-print(
-    "*** Requested User Fields resolved successfully."
-)
-
-print_records(
-    selected_user_fields,
-    n=len(selected_user_fields),
-)
-
-
-# ----------------------------------------------------------
-# GET ENTITY 3D RECORDS
-# ----------------------------------------------------------
-
-print()
-print(
-    f"*** Getting Entity 3D records from "
-    f"Schedule={SCHEDULE_INDEX}..."
-)
-
-entities = get_all_entities(
-    access_token,
-    schedule_id,
-)
-
-if not entities:
-    raise RuntimeError(
-        "No Entity 3D records were returned for the "
-        "selected schedule."
-    )
-
-print(
-    f"*** Entity 3D records obtained successfully: "
-    f"{len(entities)}"
-)
-
-
-# ----------------------------------------------------------
-# GET ENTITY 3D USER FIELD VALUES
-# ----------------------------------------------------------
-
-print()
-print(
-    "*** Getting Entity 3D User Field values..."
-)
-
-entity_user_field_values = (
-    get_all_entity_userfield_values(
-        access_token,
-        schedule_id,
-    )
-)
-
-print(
-    f"*** Entity 3D User Field values obtained "
-    f"successfully: "
-    f"{len(entity_user_field_values)}"
-)
-
-
-# ----------------------------------------------------------
 # BUILD TABULATED OUTPUT
 # ----------------------------------------------------------
 
@@ -257,10 +98,11 @@ print(
     "*** Building tabulated Entity 3D User Field output..."
 )
 
-output_records = build_entity_userfield_table(
-    entities=entities,
-    userfield_value_records=entity_user_field_values,
-    selected_user_fields=selected_user_fields,
+output_records = get_entity_userfield_table(
+    access_token=access_token,
+    project_id=project_id,
+    requested_userfield_names=REQUESTED_USER_FIELD_NAMES,
+    schedule_index=SCHEDULE_INDEX,
 )
 
 if not output_records:

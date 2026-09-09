@@ -126,122 +126,102 @@ def resolve_entity_userfields(
 # BUILD ENTITY 3D USER FIELD TABLE
 # ==========================================================
 
-def resolve_requested_userfields(
-    user_fields,
-    requested_names,
+def build_entity_userfield_table(
+    entities,
+    userfield_value_records,
+    selected_user_fields,
 ):
     """
-    Resolve requested User Field names to their corresponding IDs.
+    Build a tabulated record set with one row per Entity 3D.
 
-    Matching is:
+    Output columns:
 
-        - case-insensitive
-        - insensitive to leading/trailing spaces
-
-    The returned records use a consistent structure:
-
-        {
-            "id": "...",
-            "name": "..."
-        }
+        entity_id
+        requested User Field 1
+        requested User Field 2
+        ...
     """
 
-    indexed_user_fields = {}
+    selected_field_ids = {
+        str(user_field["id"]): user_field["name"]
+        for user_field in selected_user_fields
+    }
 
-    for user_field in user_fields:
-        user_field_id = get_userfield_id(user_field)
-        user_field_name = get_userfield_name(user_field)
+    flattened_value_records = (
+        flatten_userfield_value_records(
+            userfield_value_records
+        )
+    )
+
+    values_by_entity = {}
+
+    for value_record in flattened_value_records:
+        entity_id = get_value_record_entity_id(
+            value_record
+        )
+
+        user_field_id = get_value_record_userfield_id(
+            value_record
+        )
+
+        if entity_id is None:
+            continue
 
         if user_field_id is None:
             continue
 
-        if user_field_name is None:
+        user_field_id_key = str(user_field_id)
+
+        if user_field_id_key not in selected_field_ids:
             continue
 
-        normalised_user_field_name = normalise_name(
-            user_field_name
+        entity_id_key = str(entity_id)
+
+        user_field_name = selected_field_ids[
+            user_field_id_key
+        ]
+
+        user_field_value = get_value_record_value(
+            value_record
         )
 
-        indexed_user_fields.setdefault(
-            normalised_user_field_name,
-            [],
-        ).append(
-            {
-                "id": user_field_id,
-                "name": user_field_name,
-                "source": user_field,
-            }
-        )
+        values_by_entity.setdefault(
+            entity_id_key,
+            {},
+        )[user_field_name] = user_field_value
 
-    resolved_user_fields = []
-    missing_names = []
-    duplicate_names = []
+    output_records = []
 
-    for requested_name in requested_names:
-        normalised_requested_name = normalise_name(
-            requested_name
-        )
+    for entity in entities:
+        entity_id = get_entity_id(entity)
 
-        matches = indexed_user_fields.get(
-            normalised_requested_name,
-            [],
-        )
-
-        if not matches:
-            missing_names.append(requested_name)
+        if entity_id is None:
             continue
 
-        if len(matches) > 1:
-            duplicate_names.append(
-                {
-                    "requested_name": requested_name,
-                    "matches": matches,
-                }
-            )
-            continue
+        entity_id_key = str(entity_id)
 
-        match = matches[0]
+        output_record = {
+            "entity_id": entity_id,
+        }
 
-        resolved_user_fields.append(
-            {
-                "id": match["id"],
-                "name": requested_name,
-            }
+        entity_values = values_by_entity.get(
+            entity_id_key,
+            {},
         )
 
-    if missing_names:
-        formatted_missing_names = "\n".join(
-            f"  - {name}"
-            for name in missing_names
-        )
+        for selected_user_field in selected_user_fields:
+            user_field_name = selected_user_field["name"]
 
-        raise ValueError(
-            "The following requested User Field names "
-            "were not found:\n"
-            f"{formatted_missing_names}"
-        )
-
-    if duplicate_names:
-        duplicate_lines = []
-
-        for duplicate in duplicate_names:
-            matched_ids = ", ".join(
-                str(match["id"])
-                for match in duplicate["matches"]
+            output_record[user_field_name] = (
+                entity_values.get(
+                    user_field_name,
+                    "",
+                )
             )
 
-            duplicate_lines.append(
-                f"  - {duplicate['requested_name']}: "
-                f"{matched_ids}"
-            )
+        output_records.append(output_record)
 
-        raise ValueError(
-            "The following requested User Field names "
-            "matched more than one User Field ID:\n"
-            + "\n".join(duplicate_lines)
-        )
-
-    return resolved_user_fields
+    return output_records
 
 
 # ==========================================================
