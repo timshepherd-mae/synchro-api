@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 
@@ -8,6 +9,52 @@ from pathlib import Path
 
 FILETYPE_CSV = 0
 FILETYPE_TSV = 1
+
+# ==========================================================
+# PROJECT LABEL
+# ==========================================================
+
+def build_project_label(
+    project_name,
+    length=6,
+):
+    """
+    Build a compact uppercase project label.
+
+    Processing:
+        1. Convert the name to text.
+        2. Remove all whitespace.
+        3. Take the first `length` characters.
+        4. Convert to uppercase.
+        5. Replace Windows-invalid filename characters.
+
+    Examples
+    --------
+    "Yorkshire Green" -> "YORKSH"
+
+    "Project Alpha" -> "PROJEC"
+    """
+
+    compact_name = re.sub(
+        r"\s+",
+        "",
+        str(project_name),
+    )
+
+    project_label = (
+        compact_name[:length]
+        .upper()
+    )
+
+    project_label = re.sub(
+        r'[<>:"/\\|?*]',
+        "_",
+        project_label,
+    )
+
+    return project_label or "PROJCT"
+
+
 
 # ==========================================================
 # FILENAME COMPILER
@@ -129,32 +176,37 @@ def save_response_records(
 
 def print_records(records, n=50, padding=1):
     """
-    Print records as a table.
-
-    Parameters
-    ----------
-    records : list[dict]
-
-    n : int
-         >0 : first n rows
-         <0 : last abs(n) rows
-          0 : print nothing
+    Print a list of record dictionaries as a table.
     """
+
+    if not isinstance(records, list):
+        raise TypeError(
+            "print_records() expects a list of dictionaries, "
+            f"but received {type(records).__name__}."
+        )
 
     if not records:
         print("[EMPTY LIST]")
         return
 
+    if not all(
+        isinstance(record, dict)
+        for record in records
+    ):
+        raise TypeError(
+            "print_records() expects every list item "
+            "to be a dictionary."
+        )
+
     if n == 0:
         return
 
-    # print top padding
     for _ in range(padding):
         print()
 
-    # Select rows
     rows = records[:n] if n > 0 else records[n:]
 
+    # Continue with the existing function...
     # Build field list
     fields = []
 

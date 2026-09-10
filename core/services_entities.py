@@ -197,9 +197,10 @@ def get_project_entity_userfield_table(
     # RETURN RECORDS AND CONTEXT
     # ------------------------------------------------------
 
-    return {
-        "project_id": project_id,
-        "schedule": schedule,
-        "selected_userfields": selected_userfields,
-        "records": records,
-    }
+    output_records = build_entity_userfield_table(
+        entities=entities,
+        userfield_value_records=entity_userfield_values,
+        selected_user_fields=selected_userfields,
+    )
+
+    return output_records

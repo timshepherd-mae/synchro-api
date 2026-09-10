@@ -1,10 +1,7 @@
-from core.api_auth import (
-    get_access_token,
-)
+from core.api_auth import get_access_token
+from core.api_itwins import get_projects
 
-from core.api_itwins import (
-    get_projects,
-)
+from core.dialogtools import select_projects
 
 from core.services_entities import (
     get_project_entity_userfield_table,
@@ -12,6 +9,7 @@ from core.services_entities import (
 
 from core.outtools import (
     FILETYPE_CSV,
+    build_project_label,
     compile_filename,
     print_records,
     save_response_records,
@@ -28,78 +26,49 @@ REQUESTED_USER_FIELD_NAMES = [
     "Synchro.SynchroID",
 ]
 
-OUTPUT_FILENAME = "entity_userfield_values"
+OUTPUT_FILENAME = "sid_rid_guid_table.csv"
 OUTPUT_FILETYPE = FILETYPE_CSV
 
-PROJECT_INDEX = 0
 SCHEDULE_INDEX = 0
-
 CONSOLE_PREVIEW_ROWS = 15
 
+OUTPUT_DESTINATION = (
+    "data_export/test_export"
+)
+
 
 # ==========================================================
-# MAIN
+# PROJECT LOOKUP
 # ==========================================================
 
-def main():
-    print()
-    print("*** Getting access token...")
+def build_project_lookup(projects):
+    """
+    Build an ID-to-project lookup.
+    """
 
-    access_token = get_access_token()
+    return {
+        project["id"]: project
+        for project in projects
+        if project.get("id")
+    }
 
-    print("*** Access token obtained successfully.")
 
-    # ------------------------------------------------------
-    # GET PROJECTS
-    # ------------------------------------------------------
+# ==========================================================
+# PROCESS ONE PROJECT
+# ==========================================================
 
-    print()
-    print("*** Getting project list...")
+def process_project(
+    access_token,
+    project,
+):
+    """
+    Extract and save the Entity 3D User Field table
+    for one project.
 
-    projects_response = get_projects(
-        access_token
-    )
+    Returns the output table.
+    """
 
-    projects = projects_response.get(
-        "iTwins",
-        [],
-    )
-
-    if not projects:
-        raise RuntimeError(
-            "No iTwins were returned."
-        )
-
-    print(
-        f"*** Project list obtained successfully: "
-        f"{len(projects)}"
-    )
-
-    print_records(
-        projects,
-        n=CONSOLE_PREVIEW_ROWS,
-    )
-
-    # ------------------------------------------------------
-    # SELECT PROJECT
-    # ------------------------------------------------------
-
-    try:
-        project = projects[PROJECT_INDEX]
-    except IndexError as ex:
-        raise IndexError(
-            f"PROJECT_INDEX {PROJECT_INDEX} is outside "
-            f"the returned project list. "
-            f"Projects returned: {len(projects)}."
-        ) from ex
-
-    project_id = project.get("id")
-
-    if not project_id:
-        raise KeyError(
-            "The selected project does not contain "
-            "an 'id' value."
-        )
+    project_id = project["id"]
 
     project_name = (
         project.get("displayName")
@@ -107,80 +76,61 @@ def main():
         or project_id
     )
 
-    print()
-    print(
-        f"*** Selected project: {project_name}"
+    project_label = build_project_label(
+        project_name
     )
-    print(
-        f"*** Selected project ID: {project_id}"
-    )
-
-    # ------------------------------------------------------
-    # RUN PROJECT SERVICE
-    # ------------------------------------------------------
 
     print()
+    print("=" * 80)
     print(
-        "*** Building project Entity 3D "
-        "User Field table..."
-    )
-
-    result = get_project_entity_userfield_table(
-        access_token=access_token,
-        project_id=project_id,
-        requested_userfield_names=(
-            REQUESTED_USER_FIELD_NAMES
-        ),
-        schedule_index=SCHEDULE_INDEX,
-    )
-
-    output_records = result["records"]
-    schedule = result["schedule"]
-    selected_userfields = (
-        result["selected_userfields"]
-    )
-
-    schedule_id = schedule.get("id")
-    schedule_name = (
-        schedule.get("name")
-        or schedule_id
-    )
-
-    print(
-        "*** Project Entity 3D User Field table "
-        "built successfully."
+        f"PROCESSING PROJECT: {project_name}"
     )
     print(
-        f"*** Schedule: {schedule_name}"
+        f"PROJECT ID: {project_id}"
     )
     print(
-        f"*** Schedule ID: {schedule_id}"
+        f"PROJECT LABEL: {project_label}"
     )
-    print(
-        f"*** Output rows: {len(output_records)}"
-    )
-
-    # ------------------------------------------------------
-    # PRINT RESOLVED USER FIELDS
-    # ------------------------------------------------------
+    print("=" * 80)
 
     print()
-    print("*** Resolved User Fields:")
-
-    print_records(
-        selected_userfields,
-        n=len(selected_userfields),
+    print(
+        "*** Building tabulated Entity 3D "
+        "User Field output..."
     )
 
-    # ------------------------------------------------------
-    # PREVIEW OUTPUT
-    # ------------------------------------------------------
+    output_records = (
+        get_project_entity_userfield_table(
+            access_token=access_token,
+            project_id=project_id,
+            requested_userfield_names=(
+                REQUESTED_USER_FIELD_NAMES
+            ),
+            schedule_index=SCHEDULE_INDEX,
+        )
+    )
+
+    if not output_records:
+        print(
+            "*** No output records were returned "
+            "for this project."
+        )
+
+        return []
+
+    print(
+        f"*** Tabulated output created "
+        f"successfully: "
+        f"{len(output_records)} rows"
+    )
 
     print()
     print(
         f"*** Previewing first "
-        f"{min(CONSOLE_PREVIEW_ROWS, len(output_records))} "
-        f"output rows..."
+        f"{min(
+            CONSOLE_PREVIEW_ROWS,
+            len(output_records),
+        )} output rows..."
     )
 
     print_records(
@@ -188,14 +138,15 @@ def main():
         n=CONSOLE_PREVIEW_ROWS,
     )
 
-    # ------------------------------------------------------
-    # SAVE OUTPUT
-    # ------------------------------------------------------
+    prefixed_filename = (
+        f"{project_label}_"
+        f"{OUTPUT_FILENAME}"
+    )
 
     output_file = compile_filename(
         uptree=1,
-        destination="data_export/test_export",
-        filename=OUTPUT_FILENAME,
+        destination=OUTPUT_DESTINATION,
+        filename=prefixed_filename,
     )
 
     print()
@@ -215,9 +166,175 @@ def main():
     )
     print(written_file)
 
-    print()
-    print("*** Process completed successfully.")
+    return output_records
 
+
+# ==========================================================
+# MAIN
+# ==========================================================
+
+def main():
+    print()
+    print("*** Getting access token...")
+
+    access_token = get_access_token()
+
+    print(
+        "*** Access token obtained successfully."
+    )
+
+    print()
+    print("*** Getting project list...")
+
+    projects_response = get_projects(
+        access_token
+    )
+
+    projects = projects_response.get(
+        "iTwins",
+        [],
+    )
+
+    if not projects:
+        raise RuntimeError(
+            "No iTwins were returned."
+        )
+
+    print(
+        f"*** Project list obtained "
+        f"successfully: {len(projects)}"
+    )
+
+    # ------------------------------------------------------
+    # SELECT PROJECTS
+    # ------------------------------------------------------
+
+    selected_project_ids = select_projects(
+        projects=projects,
+        title="Select SYNCHRO projects",
+    )
+
+    if not selected_project_ids:
+        print()
+        print(
+            "*** No projects selected. "
+            "Nothing to process."
+        )
+
+        return
+
+    print()
+    print(
+        f"*** Projects selected: "
+        f"{len(selected_project_ids)}"
+    )
+
+    project_lookup = build_project_lookup(
+        projects
+    )
+
+    successful_projects = []
+    failed_projects = []
+
+    # ------------------------------------------------------
+    # PROCESS SELECTED PROJECTS
+    # ------------------------------------------------------
+
+    for project_id in selected_project_ids:
+        project = project_lookup.get(
+            project_id
+        )
+
+        if project is None:
+            failed_projects.append(
+                {
+                    "project_id": project_id,
+                    "project_name": "",
+                    "error": (
+                        "Selected project was not found "
+                        "in the project response."
+                    ),
+                }
+            )
+
+            continue
+
+        project_name = (
+            project.get("displayName")
+            or project.get("name")
+            or project_id
+        )
+
+        try:
+            output_records = process_project(
+                access_token=access_token,
+                project=project,
+            )
+
+            successful_projects.append(
+                {
+                    "project_id": project_id,
+                    "project_name": project_name,
+                    "row_count": len(output_records),
+                }
+            )
+
+        except Exception as ex:
+            failed_projects.append(
+                {
+                    "project_id": project_id,
+                    "project_name": project_name,
+                    "error": str(ex),
+                }
+            )
+
+            print()
+            print(
+                f"ERROR processing "
+                f"'{project_name}':"
+            )
+            print(str(ex))
+
+
+    # ------------------------------------------------------
+    # SUMMARY
+    # ------------------------------------------------------
+
+    print()
+    print("=" * 80)
+    print("PROCESSING SUMMARY")
+    print("=" * 80)
+
+    print()
+    print(
+        f"Successful projects: "
+        f"{len(successful_projects)}"
+    )
+
+    if successful_projects:
+        print_records(
+            successful_projects,
+            n=len(successful_projects),
+        )
+
+    print(
+        f"Failed projects: "
+        f"{len(failed_projects)}"
+    )
+
+    if failed_projects:
+        print_records(
+            failed_projects,
+            n=len(failed_projects),
+        )
+
+    print()
+    print("*** Process completed.")
+
+
+# ==========================================================
+# ENTRY POINT
+# ==========================================================
 
 if __name__ == "__main__":
     main()
