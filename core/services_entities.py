@@ -149,8 +149,31 @@ def get_project_entity_userfield_table(
     selected_userfields = resolve_entity_userfields(
         user_fields=user_fields,
         requested_names=requested_userfield_names,
+        allow_missing=True
     )
 
+    resolved_names = {
+        field["name"]
+        for field in selected_userfields
+    }
+
+    missing_names = [
+        name
+        for name in requested_userfield_names
+        if name not in resolved_names
+    ]
+
+    if missing_names:
+        print()
+        print(
+            "WARNING: The following User Fields "
+            "were not found:"
+        )
+
+        for name in missing_names:
+            print(f"    {name}")
+
+            
     # ------------------------------------------------------
     # GET ENTITY 3D RECORDS
     # ------------------------------------------------------
@@ -181,13 +204,13 @@ def get_project_entity_userfield_table(
     # BUILD OUTPUT TABLE
     # ------------------------------------------------------
 
-    records = build_entity_userfield_table(
+    output_records = build_entity_userfield_table(
         entities=entities,
         userfield_value_records=entity_userfield_values,
         selected_user_fields=selected_userfields,
     )
 
-    if not records:
+    if not output_records:
         raise RuntimeError(
             f"No output records were created for project "
             f"{project_id}, schedule {schedule_id}."
@@ -196,11 +219,5 @@ def get_project_entity_userfield_table(
     # ------------------------------------------------------
     # RETURN RECORDS AND CONTEXT
     # ------------------------------------------------------
-
-    output_records = build_entity_userfield_table(
-        entities=entities,
-        userfield_value_records=entity_userfield_values,
-        selected_user_fields=selected_userfields,
-    )
 
     return output_records

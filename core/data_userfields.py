@@ -7,6 +7,7 @@
 def resolve_entity_userfields(
     user_fields,
     requested_names,
+    allow_missing=False,
 ):
     """
     Resolve requested User Field names to their corresponding IDs.
@@ -87,7 +88,7 @@ def resolve_entity_userfields(
             }
         )
 
-    if missing_names:
+    if missing_names and not allow_missing:
         formatted_missing_names = "\n".join(
             f"  - {name}"
             for name in missing_names
@@ -118,6 +119,12 @@ def resolve_entity_userfields(
             "matched more than one User Field ID:\n"
             + "\n".join(duplicate_lines)
         )
+
+        if not resolved_user_fields:
+            raise ValueError(
+                "None of the requested User Fields "
+                "were found."
+            )
 
     return resolved_user_fields
 
