@@ -14,7 +14,7 @@ print("*** Project list obtained successfully.")
 
 print_records(projects, n=15)
 
-project = projects[0]
+project = projects[2]
 
 print("*** Getting schedules from Project=0...")
 schedules = get_schedules(access_token, project['id'])['schedules']

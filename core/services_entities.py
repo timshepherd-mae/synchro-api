@@ -26,6 +26,7 @@ def get_project_entity_userfield_table(
     project_id: str,
     requested_userfield_names: list[str],
     schedule_index: int = 0,
+    userfield_category: str | None = "Entity3d",
 ) -> dict:
     """
     Build an Entity 3D User Field table for one Bentley project.
@@ -132,14 +133,21 @@ def get_project_entity_userfield_table(
     # ------------------------------------------------------
 
     user_fields = get_all_userfields(
-        access_token,
-        schedule_id,
+        access_token=access_token,
+        schedule_id=schedule_id,
+        category=userfield_category,
     )
 
     if not user_fields:
+        category_context = (
+            f" in category '{userfield_category}'"
+            if userfield_category is not None
+            else ""
+        )
+
         raise RuntimeError(
             f"No User Fields were returned for schedule "
-            f"{schedule_id}."
+            f"{schedule_id}{category_context}."
         )
 
     # ------------------------------------------------------

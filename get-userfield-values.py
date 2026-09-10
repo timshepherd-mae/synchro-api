@@ -24,6 +24,7 @@ REQUESTED_USER_FIELD_NAMES = [
     "MAE-4D.RID",
     "Item.GUID",
     "Synchro.SynchroID",
+    "MAE-4D.TEST",
 ]
 
 OUTPUT_FILENAME = "sid_rid_guid_table.csv"
